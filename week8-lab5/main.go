@@ -29,6 +29,7 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+// Sdwdw
 var db *sql.DB
 
 func initDB() {
