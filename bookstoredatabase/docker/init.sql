@@ -1,3 +1,4 @@
+-- สร้างตาราง books
 CREATE TABLE books (
 	id SERIAL PRIMARY KEY,
 	title VARCHAR(255) NOT NULL,
@@ -22,7 +23,7 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_books_modtime
 BEFORE UPDATE ON books
 FOR EACH ROW
-EXECUTE FUNCTION update_modified_column(); 
+EXECUTE FUNCTION update_modified_column();
 
 -- สร้าง index บน title เพื่อเพิ่มประสิทธิภาพการค้นหา
 CREATE INDEX idx_books_title ON books(title);

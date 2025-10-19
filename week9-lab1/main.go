@@ -6,9 +6,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
 type Book struct {
@@ -29,21 +31,23 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// Sdwdw
 var db *sql.DB
 
 func initDB() {
 	var err error
-
 	host := getEnv("DB_HOST", "localhost")
-	name := getEnv("DB_NAME", "bookstore")
+	port := getEnv("DB_PORT", "5432")
 	user := getEnv("DB_USER", "bookstore_user")
 	password := getEnv("DB_PASSWORD", "your_strong_password")
-	port := getEnv("DB_PORT", "5432")
+	name := getEnv("DB_NAME", "bookstore")
 
-	conSt := fmt.Sprintf("host=%s port=%s user=%s password=%s db_name=%s sslmode=disable", host, port, user, password, name)
-	// fmt.Println(conSt)
-	db, err = sql.Open("postgres", conSt)
+	conStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, name)
+
+	db, err = sql.Open("postgres", conStr)
+	if err != nil {
+		log.Fatal("Failed to open database:", err)
+	}
 
 	// กำหนดจำนวน Connection สูงสุด
 	db.SetMaxOpenConns(25)
@@ -54,23 +58,19 @@ func initDB() {
 	// กำหนดอายุของ Connection
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	if err != nil {
-		log.Fatalf("failed to open database")
-	}
-
 	err = db.Ping()
 	if err != nil {
-		log.Fatal("failed to connect to database")
+		log.Fatal("Failed to connect to database:", err)
 	}
 
-	log.Println("successfully connected to database")
+	log.Println("Connected to the database successfully!")
 }
 
 func getAllBooks(c *gin.Context) {
 	var rows *sql.Rows
 	var err error
 	// ลูกค้าถาม "มีหนังสืออะไรบ้าง"
-	rows, err = db.Query("SELECT id, title, author, isbn, year, price, created_at, update_at FROM books")
+	rows, err = db.Query("SELECT id, title, author, isbn, year, price, created_at, updated_at FROM books")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -144,9 +144,7 @@ func createBook(c *gin.Context) {
 }
 
 func updateBook(c *gin.Context) {
-
 	var ID int
-
 	id := c.Param("id")
 	var updateBook Book
 
@@ -160,10 +158,10 @@ func updateBook(c *gin.Context) {
 		`UPDATE books
          SET title = $1, author = $2, isbn = $3, year = $4, price = $5
          WHERE id = $6
-         RETURNING updated_at`,
+         RETURNING id, updated_at`,
 		updateBook.Title, updateBook.Author, updateBook.ISBN,
 		updateBook.Year, updateBook.Price, id,
-	).Scan(&updatedAt)
+	).Scan(&ID, &updatedAt)
 
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{"error": "book not found"})
@@ -202,7 +200,6 @@ func deleteBook(c *gin.Context) {
 
 func main() {
 	initDB()
-
 	defer db.Close()
 
 	r := gin.Default()
@@ -210,10 +207,9 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		err := db.Ping()
 		if err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "unhealty", "error": err})
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "unheathy", "error": err})
 			return
 		}
-
 		c.JSON(200, gin.H{"message": "healthy"})
 	})
 
@@ -224,8 +220,6 @@ func main() {
 		api.POST("/books", createBook)
 		api.PUT("/books/:id", updateBook)
 		api.DELETE("/books/:id", deleteBook)
-		// }
-
-		r.Run(":8080")
 	}
+	r.Run(":8081")
 }
